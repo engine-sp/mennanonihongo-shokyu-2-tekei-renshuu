@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV to JSON Converter - Japanese Verbs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">動詞資料轉換器 (CSV to JSON)</h1>
+            <p class="text-gray-600">將 CSV 格式的日文動詞資料轉換為特定的 JSON 結構</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Input Section -->
+            <div class="bg-white rounded-xl shadow-md p-6 flex flex-col h-[600px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-700">CSV 輸入</h2>
+                    <button id="clearInput" class="text-sm text-red-500 hover:text-red-700 transition-colors">清除內容</button>
+                </div>
+                <textarea id="csvInput" class="flex-grow p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none font-mono text-sm custom-scrollbar" placeholder="請在此貼上 CSV 內容..."></textarea>
+            </div>
+
+            <!-- Output Section -->
+            <div class="bg-white rounded-xl shadow-md p-6 flex flex-col h-[600px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-gray-700">JSON 輸出</h2>
+                    <div class="space-x-2">
+                        <button id="copyBtn" class="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm">複製</button>
+                        <button id="downloadBtn" class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm font-medium">下載 JSON</button>
+                    </div>
+                </div>
+                <div id="jsonOutput" class="flex-grow p-4 bg-gray-50 border border-gray-300 rounded-lg overflow-auto font-mono text-sm custom-scrollbar whitespace-pre"></div>
+            </div>
+        </div>
+
+        <div class="mt-8 flex justify-center">
+            <button id="convertBtn" class="px-8 py-3 bg-blue-600 text-white text-lg font-bold rounded-lg shadow-lg hover:bg-blue-700 transform hover:-translate-y-1 transition-all active:scale-95">
+                立即轉換
+            </button>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="fixed bottom-8 right-8 px-6 py-3 bg-gray-800 text-white rounded-lg shadow-2xl transform translate-y-24 opacity-0 transition-all duration-300 flex items-center space-x-2">
+            <span id="toastMsg"></span>
+        </div>
+    </div>
+
+    <script>
+        const csvInput = document.getElementById('csvInput');
+        const jsonOutput = document.getElementById('jsonOutput');
+        const convertBtn = document.getElementById('convertBtn');
+        const clearInput = document.getElementById('clearInput');
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const toast = document.getElementById('toast');
+        const toastMsg = document.getElementById('toastMsg');
+
+        // 預設內容（根據您的 data.csv）
+        const defaultCsv = `連用形,ます形,て形規則,課本,課編號
+寝,寝ます,E,初級1,4
+休み,休みます,C,初級1,4
+働き,働きます,A,初級1,4
+勉強し,勉強します,E,初級1,4
+行き,行きます,D,初級1,5
+き,きます,E,初級1,5
+働き,働きます,A,初級1,5
+歩き,歩きます,A,初級1,5
+食べ,食べます,E,初級1,6
+飲み,飲みます,C,初級1,6
+働き,働きます,A,初級1,6
+歩き,歩きます,A,初級1,6
+読み,読みます,C,初級1,6
+書き,書きます,A,初級1,6
+買い,買います,D,初級1,6
+撮り,撮ります,D,初級1,6
+会い,會います,D,初級1,6
+切り,切ります,D,初級1,7
+送り,送ります,D,初級1,7
+あげ,あげます,E,初級1,7
+もらい,もらいます,D,初級1,7
+貸し,貸します,E,初級1,7
+借り,借ります,E,初級1,7
+教え,教えます,E,初級1,7
+習い,習います,D,初級1,7
+掛け,掛けます,E,初級1,7
+生活し,生活します,E,初級1,8
+仕事し,仕事します,E,初級1,8
+分かり,分かります,D,初級1,9
+有り,有ります,D,初級1,9
+料理し,料理します,E,初級1,9
+旅行し,旅行します,E,初級1,9
+約束し,約束します,E,初級1,9
+アルバイトし,アルバイトします,E,初級1,9
+在り,在ります,D,初級1,10
+い,います,E,初級1,10
+掛かり,掛かります,D,初級1,11
+休み,休みます,C,初級1,11
+遊び,遊びます,C,初級2,13
+泳ぎ,泳ぎます,B,初級2,13
+迎え,迎えます,E,初級2,13
+疲れ,疲れます,E,初級2,13
+結婚し,結婚します,E,初級2,13
+買い物し,買い物します,E,初級2,13
+食事し,食事します,E,初級2,13
+散歩し,散歩します,E,初級2,13
+会い,會います,D,初級2,13
+空き,空きます,A,初級2,13
+つけ,つけます,E,初級2,14
+消し,消します,E,初級2,14
+開け,開けます,E,初級2,14
+閉め,閉めます,E,初級2,14
+急ぎ,急ぎます,B,初級2,14
+待ち,待ちます,D,初級2,14
+取り,取ります,D,初級2,14
+手傳い,手傳います,D,初級2,14
+呼び,呼びます,C,初級2,14
+話し,話します,E,初級2,14
+使い,使います,D,初級2,14
+止め,止めます,E,初級2,14
+見せ,見せます,E,初級2,14
+教え,教えます,E,初級2,14
+座り,座ります,D,初級2,14
+立ち,立ちます,D,初級2,14
+入り,入ります,D,初級2,14
+出,出ます,E,初級2,14
+降り,降ります,D,初級2,14
+電氣し,電氣します,E,初級2,14
+置き,置きます,A,初級2,15
+作り,作ります,D,初級2,15
+売り,売ります,D,初級2,15
+知り,知ります,D,初級2,15
+住み,住みます,C,初級2,15
+研究し,研究します,E,初級2,15
+思い出し,思い出します,E,初級2,15
+いらっしゃい,いらっしゃいます,D,初級2,15
+乗り,乗ります,D,初級2,16
+降り,降ります,E,初級2,16
+乗り換え,乗り換えます,E,初級2,16
+浴び,浴びます,E,初級2,16
+入れ,入れます,E,初級2,16
+出し,出します,E,初級2,16
+下ろし,下ろします,E,初級2,16
+出,出ます,E,初級2,16
+押し,押します,E,初級2,16
+飲み,飲みます,C,初級2,16
+始め,始めます,E,初級2,16
+見學し,見學します,E,初級2,16
+電話し,電話します,E,初級2,16
+覚え,覚えます,E,初級2,17
+忘れ,忘れます,E,初級2,17
+無くし,無くします,E,初級2,17
+払い,払います,D,初級2,17
+返し,返します,E,初級2,17
+出掛け,出掛けます,E,初級2,17
+脫ぎ,脫ぎます,B,初級2,17
+心配し,心配します,E,初級2,17
+殘業し,殘業します,E,初級2,17
+出張し,出張します,E,初級2,17
+出來,出來ます,E,初級2,18
+洗い,洗います,D,初級2,18
+彈き,彈きます,A,初級2,18
+歌い,歌います,D,初級2,18
+集め,集めます,E,初級2,18
+捨て,捨てます,E,初級2,18
+換え,換えます,E,初級2,18
+運転し,運転します,E,初級2,18
+予約し,予約します,E,初級2,18`;
+
+        csvInput.value = defaultCsv;
+
+        function showToast(msg) {
+            toastMsg.textContent = msg;
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 3000);
+        }
+
+        function convert() {
+            const rawText = csvInput.value.trim();
+            if (!rawText) {
+                showToast('❌ 請先輸入 CSV 內容');
+                return;
+            }
+
+            const lines = rawText.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            // 檢查欄位是否存在
+            const mapping = {
+                '連用形': '連用形',
+                'ます形': 'ます形',
+                'て形規則': '規則',
+                '課本': '課本',
+                '課編號': '課編號'
+            };
+
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                
+                const values = lines[i].split(',').map(v => v.trim());
+                const entry = {};
+                
+                headers.forEach((header, index) => {
+                    const jsonKey = mapping[header] || header;
+                    let value = values[index];
+                    
+                    // 課編號轉數字
+                    if (jsonKey === '課編號') {
+                        const num = parseInt(value, 10);
+                        value = isNaN(num) ? value : num;
+                    }
+                    
+                    entry[jsonKey] = value;
+                });
+                result.push(entry);
+            }
+
+            jsonOutput.textContent = JSON.stringify(result, null, '\t');
+            showToast('✅ 轉換成功！');
+        }
+
+        convertBtn.addEventListener('click', convert);
+
+        clearInput.addEventListener('click', () => {
+            csvInput.value = '';
+            jsonOutput.textContent = '';
+            showToast('🧹 已清除');
+        });
+
+        copyBtn.addEventListener('click', () => {
+            const content = jsonOutput.textContent;
+            if (!content) return;
+            navigator.clipboard.writeText(content).then(() => {
+                showToast('📋 已複製到剪貼簿');
+            });
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const content = jsonOutput.textContent;
+            if (!content) return;
+            const blob = new Blob([content], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'verbs_data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('💾 檔案下載中...');
+        });
+
+        // 頁面加載後自動執行一次轉換
+        convert();
+    </script>
+</body>
+</html>
